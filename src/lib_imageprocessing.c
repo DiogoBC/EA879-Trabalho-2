@@ -1,10 +1,14 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-
 #include "imageprocessing.h"
-
 #include <FreeImage.h>
+#include <sys/types.h>
+#include <sys/mman.h>
+#include <unistd.h>
+#include <sys/wait.h>
+#include <time.h>
+#include <pthread.h>
 
 /*
 imagem abrir_imagem(char *nome_do_arquivo);
@@ -135,19 +139,4 @@ void vmax_imagem (imagem *I, float vmax[3]){
 			}			
 		}
 	}	
-}
-
-void imprime (imagem *I){
-
-	int i, j, idx;
-
-	for (i=0; i<I->width; i++) {
-		for (j=0; j<I->height; j++){
-			idx = i + (j*I->width);			
-			if (I->r[idx] - (int)I->r[idx] != 0 | I->g[idx] - (int)I->g[idx] != 0 | I->b[idx] - (int)I->b[idx] != 0){
-				printf ("%f %f %f\n", I->r[idx], I->g[idx], I->b[idx]);
-			}			
-		}
-	}
-	printf ("fim de impressão\n");
 }
