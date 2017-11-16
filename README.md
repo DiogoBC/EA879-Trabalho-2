@@ -39,7 +39,7 @@ invertê-las ou adicionar novas, se achar necessário.
    1. O brilho é aplicado usando uma única linha de execução, varrendo a matriz
       em suas linhas.
    1. O brilho é aplicado usando uma única linha de execução, varrendo a matriz
-      em suas colinas.
+      em suas colunas.
 1. Verifique a diferença do tempo de execução de cada uma das variações,
    considerando imagens de diferentes tamanhos (use imagens bem pequenas, como
    cliparts de 32 por 32 pixels, e também imagens gigantescas)

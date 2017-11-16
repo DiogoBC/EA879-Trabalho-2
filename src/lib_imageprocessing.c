@@ -52,7 +52,6 @@ imagem abrir_imagem(char *nome_do_arquivo) {
     }
    }
   return I;
-
 }
 
 void liberar_imagem(imagem *I) {
