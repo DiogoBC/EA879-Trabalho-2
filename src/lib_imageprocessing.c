@@ -10,7 +10,6 @@
 #include <time.h>
 #include <pthread.h>
 #include <sys/time.h>
-#include <math.h>
 
 imagem abrir_imagem(char *nome_do_arquivo) {
   FIBITMAP *bitmapIn;
@@ -102,11 +101,51 @@ void vmax_imagem (imagem *I, float vmax[3]){
 	}	
 }
 
+void brilhoDireto (imagem *I, float fator){
+
+  int y, x, idx;
+  float r, g, b;
+  struct timeval rt0, rt1, drt;
+
+  gettimeofday(&rt0, NULL);
+  
+  for (y=0; y<I->height; y++) {
+    for (x=0; x<I->width; x++){
+      idx = x + (y*I->width);
+      r = I->r[idx] * fator;
+      g = I->g[idx] * fator;
+      b = I->b[idx] * fator;      
+      if  (r > 255){
+        I->r[idx] = 255;        
+      }
+      else {
+        I->r[idx] = r;
+      }
+      if (g > 255){
+        I->g[idx] =  255;
+      }
+      else {
+        I->g[idx] = g;
+      }
+      if (b > 255){
+        I->b[idx] = 255;
+      }
+      else {
+        I->b[idx] = b;
+      }   
+            
+    }
+  }
+  gettimeofday(&rt1, NULL);
+  timersub(&rt1, &rt0, &drt);
+  printf("Tempo de multiplicação direta: %ld.%06ld segundos\n", drt.tv_sec, drt.tv_usec);
+}
+
 void multiplicaLinha (int i, imagem *I, float *r, float *g, float *b, float fator){
   int x, idx;
   float rPix, gPix, bPix;
   for (x=0; x<I->width; x++){
-    idx = i*(I->height) + x;
+    idx = i*(I->width) + x;
     rPix = I->r[idx]*fator;
     gPix = I->g[idx]*fator;
     bPix = I->b[idx]*fator;
@@ -161,6 +200,9 @@ void brilhoProcesso (imagem *I, float fator){
   float *r = (float*) mmap(NULL, sizeof(float)*(I->height)*(I->width), protection, visibility, 0, 0);
   float *g = (float*) mmap(NULL, sizeof(float)*(I->height)*(I->width), protection, visibility, 0, 0);
   float *b = (float*) mmap(NULL, sizeof(float)*(I->height)*(I->width), protection, visibility, 0, 0);
+  struct timeval rt0, rt1, drt;
+
+  gettimeofday(&rt0, NULL);
 
   for (i=0; i<n; i++){
     pids[i] = fork();
@@ -187,9 +229,14 @@ void brilhoProcesso (imagem *I, float fator){
     waitpid (pids[i], &status, 0);
     i++;
   }
+
+  gettimeofday(&rt1, NULL);
+  timersub(&rt1, &rt0, &drt);
   atualizaImagem (I, r, g, b);
+  printf("Tempo de multiplicação por processos: %ld.%06ld segundos\n", drt.tv_sec, drt.tv_usec);
 }
 
 void brilho_imagem (imagem *I, float fator){
+  brilhoDireto (I, 1/(fator*fator));
   brilhoProcesso (I, fator);
 }
