@@ -10,6 +10,7 @@
 #include <time.h>
 #include <pthread.h>
 #include <sys/time.h>
+#include <math.h>
 
 imagem abrir_imagem(char *nome_do_arquivo) {
   FIBITMAP *bitmapIn;
@@ -186,15 +187,9 @@ void atualizaImagem (imagem *I, float *r, float *g, float *b){
 
 void brilhoProcesso (imagem *I, float fator){
 
-  int n; 
-  if ((I->height)%2 == 0){
-    n = (I->height)/2;
-  }
-  else {
-    n = ((I->height)/2)+1;
-  }
+  int n = ((int)((I->height)/pow(2,10)) > 0) ? (int)((I->height)/pow(2,10)) : 1; //Número de processos = 2*n   
   pid_t *pids = malloc(sizeof(pid_t)*n);
-  int i, j, status;
+  int i, j, k, status;
   int protection = PROT_READ | PROT_WRITE;
   int visibility = MAP_SHARED | MAP_ANON;
   float *r = (float*) mmap(NULL, sizeof(float)*(I->height)*(I->width), protection, visibility, 0, 0);
@@ -211,14 +206,14 @@ void brilhoProcesso (imagem *I, float fator){
       exit (EXIT_FAILURE);
     }
     else if (pids[i] == 0){
-      if (2*i<I->height){
-        multiplicaLinha (2*i, I, r, g, b, fator);
-      }      
+      for (k=2*i; k<I->height; k+=2*n){
+        multiplicaLinha (k, I, r, g, b, fator);
+      }            
       exit (EXIT_SUCCESS);
     }
     else {
-      if (((2*i)+1)<I->height){
-        multiplicaLinha ((2*i)+1, I, r, g, b, fator);
+      for (k=(2*i)+1; k<I->height; k+=2*n){
+        multiplicaLinha (k, I, r, g, b, fator);
       }           
     }
   }  
@@ -233,7 +228,7 @@ void brilhoProcesso (imagem *I, float fator){
   gettimeofday(&rt1, NULL);
   timersub(&rt1, &rt0, &drt);
   atualizaImagem (I, r, g, b);
-  printf("Tempo de multiplicação por processos: %ld.%06ld segundos\n", drt.tv_sec, drt.tv_usec);
+  printf("Tempo de multiplicação por %d processos: %ld.%06ld segundos\n", 2*n, drt.tv_sec, drt.tv_usec);
 }
 
 void brilho_imagem (imagem *I, float fator){
