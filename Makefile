@@ -2,7 +2,7 @@
 SRCDIR=./src
 
 all: lex.yy.c y.tab.c lib_imageprocessing.o
-	gcc -omain lex.yy.c y.tab.c lib_imageprocessing.o -ll -lfreeimage -lpthread -I$(SRCDIR)
+	gcc -o main lex.yy.c y.tab.c lib_imageprocessing.o -ll -lfreeimage -lpthread -I$(SRCDIR)
 
 lex.yy.c:$(SRCDIR)/imageprocessing.l
 	lex $(SRCDIR)/imageprocessing.l

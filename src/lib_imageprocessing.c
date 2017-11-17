@@ -9,12 +9,8 @@
 #include <sys/wait.h>
 #include <time.h>
 #include <pthread.h>
-
-/*
-imagem abrir_imagem(char *nome_do_arquivo);
-void salvar_imagem(char *nome_do_arquivo);
-void liberar_imagem(imagem *i);
- */
+#include <sys/time.h>
+#include <math.h>
 
 imagem abrir_imagem(char *nome_do_arquivo) {
   FIBITMAP *bitmapIn;
@@ -83,40 +79,6 @@ void salvar_imagem(char *nome_do_arquivo, imagem *I) {
   FreeImage_Save(FIF_JPEG, bitmapOut, nome_do_arquivo, JPEG_DEFAULT);
 }
 
-void brilho_imagem (imagem *I, float fator) {
-
-	int i, j, idx;
-	float r, g, b;
-	
-	for (i=0; i<I->width; i++) {
-		for (j=0; j<I->height; j++){
-			idx = i + (j*I->width);
-			r = I->r[idx] * fator;
-			g = I->g[idx] * fator;
-			b = I->b[idx] * fator;			
-			if  (r > 255){
-				I->r[idx] = 255;				
-			}
-			else {
-				I->r[idx] = r;
-			}
-			if (g > 255){
-				I->g[idx] =  255;
-			}
-			else {
-				I->g[idx] = g;
-			}
-			if (b > 255){
-				I->b[idx] = 255;
-			}
-			else {
-				I->b[idx] = b;
-			}		
-						
-		}
-	}
-}
-
 void vmax_imagem (imagem *I, float vmax[3]){
 
 	int i, j, idx;
@@ -138,4 +100,96 @@ void vmax_imagem (imagem *I, float vmax[3]){
 			}			
 		}
 	}	
+}
+
+void multiplicaLinha (int i, imagem *I, float *r, float *g, float *b, float fator){
+  int x, idx;
+  float rPix, gPix, bPix;
+  for (x=0; x<I->width; x++){
+    idx = i*(I->height) + x;
+    rPix = I->r[idx]*fator;
+    gPix = I->g[idx]*fator;
+    bPix = I->b[idx]*fator;
+    if (rPix > 255){
+      r[idx] = 255;        
+    }
+    else {
+      r[idx] = rPix;
+    }
+    if (gPix > 255){
+      g[idx] = 255;
+    }
+    else {
+      g[idx] = gPix;
+    }
+    if (bPix > 255){
+      b[idx] = 255;
+    }
+    else {
+      b[idx] = bPix;
+    }
+  }
+}
+
+void atualizaImagem (imagem *I, float *r, float *g, float *b){
+
+  int x, y, idx;
+
+  for (y=0; y<I->height; y++){
+    for (x=0; x<I->width; x++){
+      idx = x + y*(I->width);
+      I->r[idx] = r[idx];
+      I->g[idx] = g[idx];
+      I->b[idx] = b[idx];
+    }
+  }
+}
+
+void brilhoProcesso (imagem *I, float fator){
+
+  int n; 
+  if ((I->height)%2 == 0){
+    n = (I->height)/2;
+  }
+  else {
+    n = ((I->height)/2)+1;
+  }
+  pid_t *pids = malloc(sizeof(pid_t)*n);
+  int i, j, status;
+  int protection = PROT_READ | PROT_WRITE;
+  int visibility = MAP_SHARED | MAP_ANON;
+  float *r = (float*) mmap(NULL, sizeof(float)*(I->height)*(I->width), protection, visibility, 0, 0);
+  float *g = (float*) mmap(NULL, sizeof(float)*(I->height)*(I->width), protection, visibility, 0, 0);
+  float *b = (float*) mmap(NULL, sizeof(float)*(I->height)*(I->width), protection, visibility, 0, 0);
+
+  for (i=0; i<n; i++){
+    pids[i] = fork();
+    if (pids[i] < 0){
+      printf ("Erro ao fazer fork\n");
+      exit (EXIT_FAILURE);
+    }
+    else if (pids[i] == 0){
+      if (2*i<I->height){
+        multiplicaLinha (2*i, I, r, g, b, fator);
+      }      
+      exit (EXIT_SUCCESS);
+    }
+    else {
+      if (((2*i)+1)<I->height){
+        multiplicaLinha ((2*i)+1, I, r, g, b, fator);
+      }           
+    }
+  }  
+
+  i=0;
+
+  while (i<n){
+    waitpid (pids[i], &status, 0);
+    i++;
+  }
+  atualizaImagem (I, r, g, b);
+}
+
+void brilho_imagem (imagem *I, float fator){
+  brilhoProcesso (I, fator);
 }
