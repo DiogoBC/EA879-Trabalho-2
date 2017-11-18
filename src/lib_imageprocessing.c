@@ -228,8 +228,8 @@ void brilhoProcesso (imagem *I, float fator){
     waitpid (pids[i], &status, 0);
     i++;
   }
-  atualizaImagem (I, r, g, b);
 
+  atualizaImagem (I, r, g, b);
   ct1 = clock();
   gettimeofday(&rt1, NULL);
   timersub(&rt1, &rt0, &drt);  
@@ -243,39 +243,42 @@ void brilhoProcesso (imagem *I, float fator){
 
 void *multiplicaLinha2 (void *arg){
 
-  dThread *dados = (dThread *) arg;
+  dThread *dados = arg;
   int i, x, idx;
   float r, g, b;
-  pthread_mutex_lock (dados->eTrava);
-  for (i=0; i<dados->I->height; i++){
-    if (dados->linDisp[i] == 0){
-      dados->linDisp[i] = 1;
-      break;
+  while (dados->l > 0){
+    pthread_mutex_lock (dados->eTrava);
+    for (i=0; i<dados->I->height; i++){
+      if (dados->linDisp[i] == 0){
+        dados->linDisp[i] = 1;
+        dados->l --;
+        break;
+      }
     }
-  }
-  pthread_mutex_unlock (dados->eTrava);
-  for (x=0; x<dados->I->width; x++){
-    idx = i*(dados->I->width) + x;
-    r = dados->I->r[idx] * dados->fator;
-    g = dados->I->g[idx] * dados->fator;
-    b = dados->I->b[idx] * dados->fator;
-    if  (r > 255){
-      dados->I->r[idx] = 255;        
-    }
-    else {
-      dados->I->r[idx] = r;
-    }
-    if (g > 255){
-      dados->I->g[idx] =  255;
-    }
-    else {
-      dados->I->g[idx] = g;
-    }
-    if (b > 255){
-      dados->I->b[idx] = 255;
-    }
-    else {
-      dados->I->b[idx] = b;
+    pthread_mutex_unlock (dados->eTrava);  
+    for (x=0; x<dados->I->width; x++){
+      idx = i*(dados->I->width) + x;
+      r = dados->I->r[idx] * dados->fator;
+      g = dados->I->g[idx] * dados->fator;
+      b = dados->I->b[idx] * dados->fator;
+      if  (r > 255){
+        dados->I->r[idx] = 255;        
+      }
+      else {
+        dados->I->r[idx] = r;
+      }
+      if (g > 255){
+        dados->I->g[idx] =  255;
+      }
+      else {
+        dados->I->g[idx] = g;
+      }
+      if (b > 255){
+        dados->I->b[idx] = 255;
+      }
+      else {
+        dados->I->b[idx] = b;
+      }
     }
   }  
 }
@@ -291,6 +294,7 @@ void brilhoThread (imagem *I, float fator){
   dados.I = I;
   dados.linDisp = linDisp;
   dados.fator = fator;
+  dados.l = I->height;
   struct timeval rt0, rt1, drt;
   clock_t ct0, ct1, dct;
   int i;    
@@ -316,8 +320,7 @@ void brilhoThread (imagem *I, float fator){
 }
 
 void brilho_imagem (imagem *I, float fator){
-  brilhoThread (I, fator);    
+  brilhoThread (I, 1/fator);
   brilhoProcesso (I, fator);
-  brilhoDireto (I, 1/fator);
-    
+  brilhoDireto (I, fator);    
 }

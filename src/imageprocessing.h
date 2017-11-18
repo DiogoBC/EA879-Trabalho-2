@@ -12,6 +12,7 @@ typedef struct {
 	pthread_mutex_t *eTrava;
 	imagem *I;
 	int *linDisp;
+	int l;
 	float fator;
 } dThread;
 
