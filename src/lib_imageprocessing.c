@@ -107,7 +107,9 @@ void brilhoDireto (imagem *I, float fator){
   int y, x, idx;
   float r, g, b;
   struct timeval rt0, rt1, drt;
+  clock_t ct0, ct1, dct;
 
+  ct0 = clock();
   gettimeofday(&rt0, NULL);
   
   for (y=0; y<I->height; y++) {
@@ -133,14 +135,14 @@ void brilhoDireto (imagem *I, float fator){
       }
       else {
         I->b[idx] = b;
-      }   
-            
+      }             
     }
   }
+  ct1 = clock();  
   gettimeofday(&rt1, NULL);
   timersub(&rt1, &rt0, &drt);
   printf("Tempo de multiplicação direta: %ld.%06ld segundos\n", drt.tv_sec, drt.tv_usec);
-}
+  printf("Tempo de multiplicação direta baseado em clock: %f segundos\n", (double)(ct1-ct0)/CLOCKS_PER_SEC);}
 
 void multiplicaLinha (int i, imagem *I, float *r, float *g, float *b, float fator){
   int x, idx;
@@ -187,8 +189,8 @@ void atualizaImagem (imagem *I, float *r, float *g, float *b){
 
 void brilhoProcesso (imagem *I, float fator){
 
-  int n = ((int)((I->height)/pow(2,10)) > 0) ? (int)((I->height)/pow(2,10)) : 1; //Número de processos = 2*n   
-  pid_t *pids = malloc(sizeof(pid_t)*n);
+  int n = 1;//((int)((I->height)/pow(2,10)) > 0) ? (int)((I->height)/pow(2,10)) : 1; //Número de processos = 2*n, potência máxima = log2(height) +1   
+  pid_t *pids = malloc(sizeof(pid_t)*n); //Vetor de id de processos
   int i, j, k, status;
   int protection = PROT_READ | PROT_WRITE;
   int visibility = MAP_SHARED | MAP_ANON;
@@ -196,8 +198,10 @@ void brilhoProcesso (imagem *I, float fator){
   float *g = (float*) mmap(NULL, sizeof(float)*(I->height)*(I->width), protection, visibility, 0, 0);
   float *b = (float*) mmap(NULL, sizeof(float)*(I->height)*(I->width), protection, visibility, 0, 0);
   struct timeval rt0, rt1, drt;
+  clock_t ct0, ct1, dct;
 
-  gettimeofday(&rt0, NULL);
+  ct0 = clock();
+  gettimeofday(&rt0, NULL);  
 
   for (i=0; i<n; i++){
     pids[i] = fork();
@@ -205,13 +209,13 @@ void brilhoProcesso (imagem *I, float fator){
       printf ("Erro ao fazer fork\n");
       exit (EXIT_FAILURE);
     }
-    else if (pids[i] == 0){
+    else if (pids[i] == 0){ //Processo filho
       for (k=2*i; k<I->height; k+=2*n){
         multiplicaLinha (k, I, r, g, b, fator);
       }            
       exit (EXIT_SUCCESS);
     }
-    else {
+    else { //Processo pai
       for (k=(2*i)+1; k<I->height; k+=2*n){
         multiplicaLinha (k, I, r, g, b, fator);
       }           
@@ -224,14 +228,96 @@ void brilhoProcesso (imagem *I, float fator){
     waitpid (pids[i], &status, 0);
     i++;
   }
+  atualizaImagem (I, r, g, b);
 
+  ct1 = clock();
+  gettimeofday(&rt1, NULL);
+  timersub(&rt1, &rt0, &drt);  
+  free (pids);
+  munmap (r, sizeof(float)*(I->height)*(I->width));
+  munmap (g, sizeof(float)*(I->height)*(I->width));
+  munmap (b, sizeof(float)*(I->height)*(I->width));  
+  printf("Tempo de multiplicação por %d processos: %ld.%06ld segundos\n", 2*n, drt.tv_sec, drt.tv_usec);
+  printf("Tempo de multiplicação por processos baseado em clock: %f segundos\n", (double)(ct1-ct0)/CLOCKS_PER_SEC);
+}
+
+void *multiplicaLinha2 (void *arg){
+
+  dThread *dados = (dThread *) arg;
+  int i, x, idx;
+  float r, g, b;
+  pthread_mutex_lock (dados->eTrava);
+  for (i=0; i<dados->I->height; i++){
+    if (dados->linDisp[i] == 0){
+      dados->linDisp[i] = 1;
+      break;
+    }
+  }
+  pthread_mutex_unlock (dados->eTrava);
+  for (x=0; x<dados->I->width; x++){
+    idx = i*(dados->I->width) + x;
+    r = dados->I->r[idx] * dados->fator;
+    g = dados->I->g[idx] * dados->fator;
+    b = dados->I->b[idx] * dados->fator;
+    if  (r > 255){
+      dados->I->r[idx] = 255;        
+    }
+    else {
+      dados->I->r[idx] = r;
+    }
+    if (g > 255){
+      dados->I->g[idx] =  255;
+    }
+    else {
+      dados->I->g[idx] = g;
+    }
+    if (b > 255){
+      dados->I->b[idx] = 255;
+    }
+    else {
+      dados->I->b[idx] = b;
+    }
+  }  
+}
+
+void brilhoThread (imagem *I, float fator){
+
+  int n = 2;//((int)((I->height)/pow(2,8)) > 0) ? (int)((I->height)/pow(2,8)) : 1; //n = numero de threads
+  pthread_t *multipliers = malloc (sizeof(pthread_t)*n);  
+  int *linDisp = malloc (sizeof(int)*I->height);
+  pthread_mutex_t trava;
+  dThread dados;
+  dados.eTrava = &trava;
+  dados.I = I;
+  dados.linDisp = linDisp;
+  dados.fator = fator;
+  struct timeval rt0, rt1, drt;
+  clock_t ct0, ct1, dct;
+  int i;    
+  for (i=0; i<I->height; i++){
+    linDisp[i] = 0;
+  }
+
+  ct0 = clock();
+  gettimeofday(&rt0, NULL);
+  for (i=0; i<n; i++){
+    pthread_create (&(multipliers[i]), NULL, multiplicaLinha2, &dados);
+  }
+  for (int i=0; i<n; i++) {
+    pthread_join(multipliers[i], NULL);    
+  }
+  ct1 = clock();
   gettimeofday(&rt1, NULL);
   timersub(&rt1, &rt0, &drt);
-  atualizaImagem (I, r, g, b);
-  printf("Tempo de multiplicação por %d processos: %ld.%06ld segundos\n", 2*n, drt.tv_sec, drt.tv_usec);
+  free (multipliers);
+  free (linDisp);
+  printf("Tempo de multiplicação por %d threads: %ld.%06ld segundos\n", n, drt.tv_sec, drt.tv_usec);
+  printf("Tempo de multiplicação por threads baseado em clock: %f segundos\n", (double)(ct1-ct0)/CLOCKS_PER_SEC);
 }
 
 void brilho_imagem (imagem *I, float fator){
-  brilhoDireto (I, 1/(fator*fator));
+  brilhoThread (I, fator);    
   brilhoProcesso (I, fator);
+  brilhoDireto (I, 1/fator);
+    
 }
