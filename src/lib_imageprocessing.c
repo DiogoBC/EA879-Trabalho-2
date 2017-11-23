@@ -141,48 +141,34 @@ void brilhoDireto (imagem *I, float fator){
   ct1 = clock();  
   gettimeofday(&rt1, NULL);
   timersub(&rt1, &rt0, &drt);
-  printf("Tempo de multiplicação direta: %ld.%06ld segundos\n", drt.tv_sec, drt.tv_usec);
-  printf("Tempo de multiplicação direta baseado em clock: %f segundos\n", (double)(ct1-ct0)/CLOCKS_PER_SEC);}
+  printf("Tempo real de multiplicação sem multitarefa: %ld.%06ld segundos\n", drt.tv_sec, drt.tv_usec);
+  printf("Tempo de multiplicação sem multitarefa baseado em clock: %f segundos\n", (double)(ct1-ct0)/CLOCKS_PER_SEC);}
 
-void multiplicaLinha (int i, imagem *I, float *r, float *g, float *b, float fator){
+void multiplicaLinha (int i, imagem *I, float fator){
   int x, idx;
   float rPix, gPix, bPix;
   for (x=0; x<I->width; x++){
     idx = i*(I->width) + x;
-    rPix = I->r[idx]*fator;
-    gPix = I->g[idx]*fator;
-    bPix = I->b[idx]*fator;
+    rPix = I->r[idx] * fator;
+    gPix = I->g[idx] * fator;
+    bPix = I->b[idx] * fator;
     if (rPix > 255){
-      r[idx] = 255;        
+      I->r[idx] = 255;        
     }
     else {
-      r[idx] = rPix;
+      I->r[idx] = rPix;
     }
     if (gPix > 255){
-      g[idx] = 255;
+      I->g[idx] = 255;
     }
     else {
-      g[idx] = gPix;
+      I->g[idx] = gPix;
     }
     if (bPix > 255){
-      b[idx] = 255;
+      I->b[idx] = 255;
     }
     else {
-      b[idx] = bPix;
-    }
-  }
-}
-
-void atualizaImagem (imagem *I, float *r, float *g, float *b){
-
-  int x, y, idx;
-
-  for (y=0; y<I->height; y++){
-    for (x=0; x<I->width; x++){
-      idx = x + y*(I->width);
-      I->r[idx] = r[idx];
-      I->g[idx] = g[idx];
-      I->b[idx] = b[idx];
+      I->b[idx] = bPix;
     }
   }
 }
@@ -191,12 +177,7 @@ void brilhoProcesso (imagem *I, float fator){
 
   int n = 1;//((int)((I->height)/pow(2,10)) > 0) ? (int)((I->height)/pow(2,10)) : 1; //Número de processos = 2*n, potência máxima = log2(height) +1   
   pid_t *pids = malloc(sizeof(pid_t)*n); //Vetor de id de processos
-  int i, j, k, status;
-  int protection = PROT_READ | PROT_WRITE;
-  int visibility = MAP_SHARED | MAP_ANON;
-  float *r = (float*) mmap(NULL, sizeof(float)*(I->height)*(I->width), protection, visibility, 0, 0);
-  float *g = (float*) mmap(NULL, sizeof(float)*(I->height)*(I->width), protection, visibility, 0, 0);
-  float *b = (float*) mmap(NULL, sizeof(float)*(I->height)*(I->width), protection, visibility, 0, 0);
+  int i, j, k, status;  
   struct timeval rt0, rt1, drt;
   clock_t ct0, ct1, dct;
 
@@ -211,13 +192,13 @@ void brilhoProcesso (imagem *I, float fator){
     }
     else if (pids[i] == 0){ //Processo filho
       for (k=2*i; k<I->height; k+=2*n){
-        multiplicaLinha (k, I, r, g, b, fator);
+        multiplicaLinha (k, I, fator);
       }            
       exit (EXIT_SUCCESS);
     }
     else { //Processo pai
       for (k=(2*i)+1; k<I->height; k+=2*n){
-        multiplicaLinha (k, I, r, g, b, fator);
+        multiplicaLinha (k, I, fator);
       }           
     }
   }  
@@ -228,16 +209,12 @@ void brilhoProcesso (imagem *I, float fator){
     waitpid (pids[i], &status, 0);
     i++;
   }
-
-  atualizaImagem (I, r, g, b);
+  
   ct1 = clock();
   gettimeofday(&rt1, NULL);
   timersub(&rt1, &rt0, &drt);  
-  free (pids);
-  munmap (r, sizeof(float)*(I->height)*(I->width));
-  munmap (g, sizeof(float)*(I->height)*(I->width));
-  munmap (b, sizeof(float)*(I->height)*(I->width));  
-  printf("Tempo de multiplicação por %d processos: %ld.%06ld segundos\n", 2*n, drt.tv_sec, drt.tv_usec);
+  free (pids);   
+  printf("Tempo real de multiplicação por %d processos: %ld.%06ld segundos\n", 2*n, drt.tv_sec, drt.tv_usec);
   printf("Tempo de multiplicação por processos baseado em clock: %f segundos\n", (double)(ct1-ct0)/CLOCKS_PER_SEC);
 }
 
@@ -315,12 +292,12 @@ void brilhoThread (imagem *I, float fator){
   timersub(&rt1, &rt0, &drt);
   free (multipliers);
   free (linDisp);
-  printf("Tempo de multiplicação por %d threads: %ld.%06ld segundos\n", n, drt.tv_sec, drt.tv_usec);
+  printf("Tempo real de multiplicação por %d threads: %ld.%06ld segundos\n", n, drt.tv_sec, drt.tv_usec);
   printf("Tempo de multiplicação por threads baseado em clock: %f segundos\n", (double)(ct1-ct0)/CLOCKS_PER_SEC);
 }
 
 void brilho_imagem (imagem *I, float fator){
-  brilhoThread (I, 1/fator);
-  brilhoProcesso (I, fator);
+  brilhoThread (I, 1);
+  brilhoProcesso (I, 1);
   brilhoDireto (I, fator);    
 }
